@@ -779,24 +779,47 @@ end
     <node name="iosv-2" type="SIMPLE" subtype="IOSv" location="204,379">
         <extensions>
             <entry key="config" type="String">!
-! Last configuration change at 03:37:46 UTC Thu May 2 2019
+! Last configuration change at 22:40:43 GMT Thu May 23 2019
 !
 version 15.6
-service timestamps debug datetime msec
-service timestamps log datetime msec
-no service password-encryption
+no service pad
+service tcp-keepalives-in
+service tcp-keepalives-out
+service timestamps debug datetime msec localtime show-timezone
+service timestamps log datetime msec localtime show-timezone
+service password-encryption
+service sequence-numbers
 !
-hostname Router
+hostname CHP-NODE38
 !
 boot-start-marker
 boot-end-marker
 !
 !
+security authentication failure rate 3 log
+logging buffered 10000
+logging rate-limit all 1000
+enable secret 5 $1$A9aN$TtvEhJYzAIm9vmG2/BAVc1
 !
-no aaa new-model
+aaa new-model
+!
+!
+aaa authentication login CONSOLE local
+aaa authentication login VTY local
+aaa authentication enable default enable
+aaa authorization console
+aaa authorization exec default local if-authenticated 
+aaa authorization network CUST-AAA local 
 !
 !
 !
+!
+!
+aaa session-id common
+!
+!
+!
+clock timezone GMT 0 0
 mmi polling-interval 60
 no mmi auto-configure
 no mmi pvc
@@ -806,13 +829,27 @@ mmi snmp-timeout 180
 !
 !
 !
+no ip source-route
 !
 !
 !
 !
 !
 !
+ip flow-cache timeout active 1
+no ip bootp server
+ip domain lookup source-interface Loopback200
+ip domain name chp.net
+ip host op2-prd1-dprox.cisco.com 1.1.1.1
+ip host devicehelper.cisco.com 1.1.1.1
+ip host cloudsso.cisco.com 1.1.1.1
+ip name-server 8.8.8.8
+ip multicast-routing 
+ip inspect tcp reassembly queue length 1024
 ip cef
+login block-for 15 attempts 3 within 30
+login on-failure log
+login on-success log
 no ipv6 cef
 !
 multilink bundle-name authenticated
@@ -820,11 +857,240 @@ multilink bundle-name authenticated
 !
 !
 !
+archive
+ log config
+  logging enable
+  logging size 500
+  notify syslog contenttype plaintext
+  hidekeys
+object-group network PRI1-VID-OBG 
+ range 239.101.0.1 239.101.255.254
+!
+object-group network PRI2-VID-OBG 
+ range 239.102.0.1 239.102.255.254
+!
+object-group network PRI3-VID-OBG 
+ range 239.103.0.1 239.103.255.254
+!
+object-group network PRI4-VID-OBG 
+ range 239.104.0.1 239.104.255.254
+!
+object-group network PRI5-VID-OBG 
+ range 239.105.0.1 239.105.255.254
+!
+username avwatch privilege 15 secret 5 $1$ZSC6$gFFA7fTuLCITrzC.eM9Pv.
+username mendiola privilege 15 secret 5 $1$dhIQ$gmXo2Plf/pvJqH22PE2we0
 !
 redundancy
 !
+no cdp run
+!
+track 102 interface GigabitEthernet0/0 ip routing
+!
+track 111 ip sla 111 reachability
+ delay down 15
+!
+track 222 ip sla 222 reachability
+ delay down 15
+!
+ip tcp ecn
+ip tcp selective-ack
+ip tcp queuemax 100000
+ip telnet source-interface Loopback200
+!
+class-map match-any PRIORITY
+ match dscp ef 
+ match dscp cs7 
+class-map match-any OVERRIDE
+ match dscp cs5 
+ match dscp cs6 
+ match protocol icmp
+ match protocol ssh
+class-map match-any IN-WR-CHAT
+ match access-group name IN-WR-CHAT-ACL
+class-map match-all IN-PRI5-VID
+ match access-group name IN-PRI5-VID-ACL
+class-map match-all IN-PRI4-VID
+ match access-group name IN-PRI4-VID-ACL
+class-map match-all IN-PRI3-VID
+ match access-group name IN-PRI3-VID-ACL
+class-map match-all IN-PRI2-VID
+ match access-group name IN-PRI2-VID-ACL
+class-map match-all IN-PRI1-VID
+ match access-group name IN-PRI1-VID-ACL
+class-map match-any IN-ATAK
+ match access-group name IN-ATAK-ACL
+class-map match-any IN-SA
+ match access-group name IN-SA-ACL
+class-map match-any IN-MGMT
+ match protocol ssh
+ match access-group name IN-WR-MGMT-ACL
+class-map match-any IN-WR-RTP
+ match access-group name IN-WR-RTP-ACL
+ match protocol rtp audio 
+class-map match-any IN-VID-CTRL
+ match protocol rtsp
+class-map match-any P4-DATA
+ match dscp cs1  af11  af12  af13 
+class-map match-any IN-GEN-DATA
+ match protocol http
+class-map match-any IN-PRI-DATA
+ match protocol secure-http
+ match protocol dns
+class-map match-any P1-DATA
+ match dscp cs4  af41  af42  af43 
+class-map match-any P3-DATA
+ match dscp cs2  af21  af22  af23 
+class-map match-any P2-DATA
+ match dscp cs3  af31  af32  af33 
+!
+policy-map PRIORITY-DATA
+ class PRIORITY
+  priority level 1
+ class OVERRIDE
+  priority level 2
+ class P1-DATA
+  bandwidth remaining percent 35 
+  random-detect dscp-based
+  random-detect exponential-weighting-constant 4
+  random-detect ecn
+  random-detect dscp 32 20 40 6
+  random-detect dscp 34 32 40 9
+  random-detect dscp 36 28 40 8
+  random-detect dscp 38 24 40 7
+ class P2-DATA
+  bandwidth remaining percent 25 
+  random-detect dscp-based
+  random-detect exponential-weighting-constant 4
+  random-detect ecn
+  random-detect dscp 24 18 38 6
+  random-detect dscp 26 30 38 9
+  random-detect dscp 28 26 38 8
+  random-detect dscp 30 22 38 7
+ class P3-DATA
+  bandwidth remaining percent 20 
+  random-detect dscp-based
+  random-detect exponential-weighting-constant 4
+  random-detect ecn
+  random-detect dscp 16 16 36 6
+  random-detect dscp 18 28 36 9
+  random-detect dscp 20 24 36 8
+  random-detect dscp 22 20 36 7
+ class P4-DATA
+  bandwidth remaining percent 10 
+  random-detect dscp-based
+  random-detect exponential-weighting-constant 4
+  random-detect ecn
+  random-detect dscp 8 14 34 6
+  random-detect dscp 10 26 34 9
+  random-detect dscp 12 22 34 8
+  random-detect dscp 14 18 34 7
+ class class-default
+  random-detect dscp-based
+  random-detect exponential-weighting-constant 4
+  random-detect ecn
+  random-detect dscp 0 5 10 4
+  queue-limit 12 packets
+  bandwidth remaining percent 5 
+policy-map PRIORITY-OUT
+ class class-default
+  shape average percent 100   
+  queue-limit 30 packets
+   service-policy PRIORITY-DATA
+policy-map IN-INSPECT
+ class IN-WR-RTP
+  set dscp ef
+ class IN-PRI1-VID
+  set dscp cs5
+ class IN-PRI2-VID
+  set dscp af41
+ class IN-PRI3-VID
+  set dscp af31
+ class IN-PRI4-VID
+  set dscp af21
+ class IN-PRI5-VID
+  set dscp af11
+ class IN-MGMT
+  set dscp cs6
+ class IN-VID-CTRL
+  set dscp af42
+ class IN-ATAK
+  set dscp af22
+ class IN-WR-CHAT
+  set dscp af23
+ class IN-SA
+  set dscp af32
+ class IN-PRI-DATA
+  set dscp af12
+ class IN-GEN-DATA
+  set dscp af13
+ class class-default
 !
 ! 
+crypto logging session
+crypto ikev2 authorization policy default
+ def-domain chp.net
+ route set interface
+!
+crypto ikev2 authorization policy CUST-POL 
+ def-domain chp.net
+ route set interface
+!
+crypto ikev2 proposal default
+ encryption aes-cbc-256
+ integrity sha384
+ group 20
+!
+crypto ikev2 policy default
+ match fvrf any
+ proposal default
+!
+crypto ikev2 keyring CUST-KEY
+ peer CUSTOMER
+  address 0.0.0.0 0.0.0.0
+  identity email domain chp.net
+  pre-shared-key CHPSECRETKEY
+ !
+!
+!
+crypto ikev2 profile CUST-PROF
+ match fvrf any
+ match identity remote email domain chp.net
+ identity local email node38@chp.net
+ authentication local pre-share
+ authentication remote pre-share
+ keyring local CUST-KEY
+ lifetime 180
+ dpd 10 2 periodic
+ aaa authorization group psk list CUST-AAA CUST-POL
+ virtual-template 1
+!
+crypto ikev2 client flexvpn PRIMARY
+  peer 1 52.37.141.182 track 111
+  peer reactivate
+  connect track 111
+  client connect Tunnel100
+!
+crypto ikev2 client flexvpn REDUNDANT
+  peer 1 40.135.183.43 track 222
+  peer reactivate
+  connect track 222
+  client connect Tunnel200
+!
+!
+!
+crypto ipsec transform-set AES256 esp-aes 256 esp-sha512-hmac 
+ mode transport
+!
+crypto ipsec profile CUST
+ set security-association dfbit copy
+ set security-association lifetime kilobytes 1024000
+ set security-association lifetime seconds 3800
+ set security-association replay disable 
+ set security-association ecn propagate
+ set transform-set AES256 
+ set pfs group20
+ set ikev2-profile CUST-PROF
 !
 !
 !
@@ -832,38 +1098,297 @@ redundancy
 !
 !
 !
+interface Loopback1
+ description &lt;= TUNNEL SOURCE =&gt;
+ ip address 1.1.1.1 255.255.255.255
+ ip nat inside
+ ip virtual-reassembly in
 !
+interface Loopback100
+ description &lt;= TUNNEL HEAD =&gt;
+ ip address 198.51.100.38 255.255.255.0
+ ip pim sparse-mode
+ ip nat outside
+ ip virtual-reassembly in
 !
+interface Loopback200
+ description &lt;= MGT INTERFACE + WROIP NAT =&gt;
+ ip address 198.19.38.1 255.255.255.240
+ ip pim sparse-mode
 !
+interface Tunnel100
+ description &lt;= PRIMARY FLEXVPN TUNNEL =&gt;
+ bandwidth 10000
+ ip unnumbered Loopback100
+ ip mtu 1400
+ ip pim dr-priority 0
+ ip pim sparse-mode
+ ip nat outside
+ ip nhrp network-id 1
+ ip nhrp registration no-unique
+ ip nhrp shortcut virtual-template 1
+ ip nhrp redirect
+ ip virtual-reassembly in
+ ip tcp adjust-mss 1360
+ delay 10
+ qos pre-classify
+ tunnel source Loopback1
+ tunnel destination dynamic
+ tunnel path-mtu-discovery
+ tunnel protection ipsec profile CUST
+!
+interface Tunnel200
+ description &lt;= REDUNDANT FLEXVPN TUNNEL =&gt;
+ bandwidth 1000
+ ip unnumbered Loopback100
+ ip mtu 1400
+ ip pim dr-priority 0
+ ip pim sparse-mode
+ ip nat outside
+ ip nhrp network-id 1
+ ip nhrp registration no-unique
+ ip nhrp shortcut virtual-template 1
+ ip nhrp redirect
+ ip virtual-reassembly in
+ ip tcp adjust-mss 1360
+ delay 20
+ qos pre-classify
+ tunnel source Loopback1
+ tunnel destination dynamic
+ tunnel path-mtu-discovery
+ tunnel protection ipsec profile CUST
+!
+interface Null0
+ no ip unreachables
 !
 interface GigabitEthernet0/0
- no ip address
- shutdown
+ description &lt;= INTERNET WAN 1 =&gt;
+ bandwidth 10000
+ ip address dhcp
+ ip access-group PROTECT-IN in
+ ip access-group PROTECT-OUT out
+ no ip unreachables
+ ip nat outside
+ ip virtual-reassembly in
+ duplex auto
+ speed auto
+ media-type rj45
+ no cdp enable
+ service-policy output PRIORITY-OUT
+!
+interface GigabitEthernet0/1
+ ip address 10.0.2.38 255.255.255.0
  duplex auto
  speed auto
  media-type rj45
 !
-interface GigabitEthernet0/1
- no ip address
- shutdown
- duplex auto
- speed auto
- media-type rj45
+interface Virtual-Template1 type tunnel
+ ip unnumbered Loopback100
+ ip mtu 1400
+ ip nat outside
+ ip nhrp network-id 1
+ ip nhrp registration no-unique
+ ip nhrp shortcut virtual-template 1
+ ip nhrp redirect
+ ip virtual-reassembly in
+ ip tcp adjust-mss 1360
+ qos pre-classify
+ tunnel path-mtu-discovery
+ tunnel protection ipsec profile CUST
+!
+!
+router eigrp 100
+ traffic-share min across-interfaces
+ maximum-paths 2
+ variance 10
+ network 198.19.38.16 0.0.0.7
+ network 198.51.100.0
+ redistribute connected route-map REDIST-CONNECTED
+ redistribute static route-map REDIST-STATIC
+ passive-interface default
+ no passive-interface Tunnel100
+ no passive-interface Virtual-Template1
+ no passive-interface Tunnel200
+ eigrp router-id 198.51.100.38
 !
 ip forward-protocol nd
 !
+ip flow-export source Loopback200
 !
+no ip ftp passive
+ip ftp source-interface Loopback200
 no ip http server
 no ip http secure-server
+ip tftp source-interface Loopback200
+ip dns view default
+ dns forwarding timeout 1
+ dns forwarder 8.8.8.8
+ip dns view-list WAVERELAY
+ view default 1
+ip dns server
+ip pim rp-address 198.19.255.1
+ip pim register-source Loopback100
+ip nat pool WROIP-NAT-POOL 198.19.38.24 198.19.38.243 netmask 255.255.255.0
+ip nat inside source list WROIP-MCAST-NAT-ACL pool WROIP-NAT-POOL
+ip nat inside source route-map WAN1 interface GigabitEthernet0/0 overload oer
+ip route 0.0.0.0 0.0.0.0 GigabitEthernet0/1 10.0.2.1
+ip route 198.19.38.0 255.255.255.0 Null0
+ip route 0.0.0.0 0.0.0.0 dhcp 254
+ip ssh source-interface Loopback200
+ip ssh version 2
 ip ssh server algorithm encryption aes128-ctr aes192-ctr aes256-ctr
 ip ssh client algorithm encryption aes128-ctr aes192-ctr aes256-ctr
 !
+ip access-list standard REDIST-CONNECTED
+ permit 198.18.0.0 0.0.255.255
+ remark &lt;= WAVERELAY SUBNET =&gt;
+ip access-list standard REDIST-STATIC
+ remark &lt;= NAT POOL ADDRESS SPACE =&gt;
+ permit 198.19.38.0 0.0.0.255
+!
+ip access-list extended BLOCKPIM
+ deny   pim any any
+ permit ip any any
+ip access-list extended CLEAR-DF-BIT
+ permit ip 198.19.0.0 0.0.255.255 any
+ip access-list extended IN-ATAK-ACL
+ permit ip any host 224.10.10.1
+ permit ip any host 227.8.135.15
+ip access-list extended IN-PRI1-VID-ACL
+ permit ip any object-group PRI1-VID-OBG
+ip access-list extended IN-PRI2-VID-ACL
+ permit ip any object-group PRI2-VID-OBG
+ip access-list extended IN-PRI3-VID-ACL
+ permit ip any object-group PRI3-VID-OBG
+ip access-list extended IN-PRI4-VID-ACL
+ permit ip any object-group PRI4-VID-OBG
+ip access-list extended IN-PRI5-VID-ACL
+ permit ip any object-group PRI5-VID-OBG
+ip access-list extended IN-SA-ACL
+ permit ip any host 239.2.3.1
+ permit ip any host 239.23.212.229
+ permit ip any host 239.23.212.230
+ permit ip any host 239.23.212.231
+ permit ip any host 239.192.0.8
+ permit ip any host 239.192.0.9
+ permit ip any host 239.192.0.10
+ip access-list extended IN-WR-CHAT-ACL
+ permit ip any host 225.2.2.2
+ip access-list extended IN-WR-MGMT-ACL
+ permit tcp any 198.18.0.0 0.0.255.255 eq 443
+ip access-list extended IN-WR-RTP-ACL
+ permit ip any host 239.192.60.0
+ permit ip any host 239.192.60.1
+ permit ip any host 239.192.60.2
+ permit ip any host 239.192.60.3
+ permit ip any host 239.192.60.4
+ permit ip any host 239.192.60.5
+ permit ip any host 239.192.60.6
+ permit ip any host 239.192.60.7
+ permit ip any host 239.192.60.8
+ permit ip any host 239.192.60.9
+ permit ip any host 239.192.60.10
+ permit ip any host 239.192.60.11
+ permit ip any host 239.192.60.12
+ permit ip any host 239.192.60.13
+ permit ip any host 239.192.60.14
+ permit ip any host 239.192.60.15
+ip access-list extended INT-NAT-ACL
+ permit ip host 1.1.1.1 any
+ permit ip 198.18.0.0 0.0.255.255 any
+ permit ip 198.19.0.0 0.0.255.255 any
+ip access-list extended PROTECT-IN
+ permit udp any any eq bootpc
+ deny   ip 127.0.0.0 0.255.255.255 any log-input
+ deny   ip 255.0.0.0 0.255.255.255 any log-input
+ deny   ip 224.0.0.0 31.255.255.255 any log-input
+ deny   ip host 0.0.0.0 any log-input
+ permit esp any any
+ permit udp any any eq isakmp
+ permit udp any any eq non500-isakmp
+ evaluate alliptraffic 
+ permit icmp any any net-unreachable
+ permit icmp any any host-unreachable
+ permit icmp any any port-unreachable
+ permit icmp any any packet-too-big
+ permit icmp any any administratively-prohibited
+ permit icmp any any source-quench
+ permit icmp any any ttl-exceeded
+ permit icmp any any echo-reply
+ permit icmp any any echo
+ deny   icmp any any
+ deny   ip any any log-input
+ip access-list extended PROTECT-OUT
+ deny   ip any 198.18.0.0 0.0.255.255
+ deny   ip any 198.19.0.0 0.0.255.255
+ deny   ip any 198.51.0.0 0.0.255.255
+ deny   udp any any eq netbios-ns
+ deny   udp any any eq netbios-dgm
+ deny   udp any any eq netbios-ss
+ permit icmp any any echo-reply
+ permit icmp any any echo
+ permit ip any any reflect alliptraffic timeout 120
+ deny   ip any any log
+ip access-list extended WROIP-MCAST-NAT-ACL
+ permit ip 198.18.0.0 0.0.255.255 224.0.0.0 15.255.255.255
+!
+ip radius source-interface Loopback200 
+ip sla 111
+ icmp-echo 52.37.141.182 source-interface Loopback1
+ tos 184
+ threshold 4000
+ timeout 4000
+ frequency 5
+ip sla schedule 111 life forever start-time now
+ip sla 222
+ icmp-echo 40.135.183.43 source-interface Loopback1
+ tos 184
+ threshold 4000
+ timeout 4000
+ frequency 5
+ip sla schedule 222 life forever start-time now
 ipv6 ioam timestamp
+!
+route-map CLEAR-DF-BIT permit 10
+ match ip address CLEAR-DF-BIT
+ set ip df 0
+!
+route-map REDIST-STATIC permit 10
+ match ip address REDIST-STATIC
+!
+route-map WAN1 permit 10
+ match ip address INT-NAT-ACL
+!
+route-map REDIST-CONNECTED permit 10
+ match ip address REDIST-CONNECTED
+!
+snmp-server ifindex persist
+snmp-server chassis-id 
+snmp mib persist circuit
+snmp mib persist cbqos
+!
 !
 !
 !
 control-plane
 !
+privilege exec level 1 ping
+privilege exec level 10 undebug ip icmp
+privilege exec level 10 undebug ip
+privilege exec level 10 undebug all
+privilege exec level 10 undebug
+privilege exec level 10 terminal monitor
+privilege exec level 10 terminal
+privilege exec level 15 show running-config
+privilege exec level 5 show configuration
+privilege exec level 5 show
+privilege exec level 10 debug ip icmp
+privilege exec level 10 debug ip
+privilege exec level 10 debug all
+privilege exec level 10 debug
+privilege exec level 10 clear interface
+privilege exec level 10 clear counters
+privilege exec level 10 clear
 banner exec `
 **************************************************************************
 * IOSv is strictly limited to use for evaluation, demonstration and IOS  *
@@ -891,14 +1416,83 @@ banner login `
 * purposes is expressly prohibited except as otherwise authorized by     *
 * Cisco in writing.                                                      *
 **************************************************************************`
+banner motd `CCC
+
+____________________________________________________________________________
+
+
+
+.........._/  _/      _/ _/            _/  _/   _/_/_/_/_/  _/_/_/ _/    _/
+
+........_/_/  _/    _/   _/    _/    _/  _/_/      _/    _/       _/    _/
+
+......_/  _/  _/  _/     _/  _/_/  _/  _/  _/     _/    _/       _/_/_/_/
+
+...._/_/_/_/  _/_/       _/_/  _/_/  _/_/_/_/    _/    _/       _/    _/
+
+.._/      _/  _/         _/    _/  _/      _/   _/      _/_/_/ _/    _/
+
+_______________________________________________________________________
+
+
+
+The unauthorised access, use or modification of this computer system
+
+        or the data contained therein or in transit to/from,
+
+            is prohibited by US Federal and State laws.
+
+
+
+            This system is subject to regular audit.
+
+-----------------------------------------------------------------------
+
+     For access problems please contact your Support Unit.
+
+
+
+       You are accessing $(hostname).$(domain) on line $(line)
+
+
+
+`
 !
 line con 0
+ login authentication CONSOLE
+ transport output telnet ssh
 line aux 0
+ no exec
+ transport output none
 line vty 0 4
- login
+ exec-timeout 22 0
+ login authentication VTY
+ length 0
+ transport input telnet ssh
+line vty 5 15
+ access-class MGMT-ACCESS in
+ exec-timeout 22 0
+ absolute-timeout 1
+ login authentication VTY
+ length 0
+ transport input telnet ssh
+line vty 16 40
+ exec-timeout 0 5
+ absolute-timeout 1
+ length 0
  transport input none
 !
-no scheduler allocate
+scheduler allocate 20000 1000
+ntp source Loopback200
+ntp update-calendar
+ntp server 198.19.255.1
+event manager environment _WAN1 g0
+event manager applet WAN1-DHCP-RELEASE
+ event track 102 state down
+ action 1.0 cli command "enable"
+ action 2.0 cli command "release dhcp $_WAN1 "
+ action 3.0 cli command "end"
+ action 4.0 cli command "exit"
 !
 end
 
